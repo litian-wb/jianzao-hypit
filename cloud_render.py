@@ -2,7 +2,7 @@ from pathlib import Path
 import os,sys,json,shutil,subprocess,hashlib,urllib.request,re,time
 ROOT=Path.cwd();ENGINE=ROOT/'engine';PROJECT=ROOT/'project';OUT=PROJECT/'output';OUT.mkdir(exist_ok=True)
 SCENE=ENGINE/'examples/semantic-composition';MODE=os.environ.get('RENDER_MODE','smoke')
-START,END=(2040,2940) if MODE=='smoke' else (0,7080)
+START,END=(0,900) if MODE=='smoke' else (0,7080)
 DURATION=(END-START)/60
 
 def run(args,**kw):
@@ -33,18 +33,24 @@ try:
   assert hashlib.sha256((PROJECT/name).read_bytes()).hexdigest()==digest,name
  for name in ['main.svml','main.svrun','main.svs']:
   shutil.copyfile(PROJECT/'hypit'/name,SCENE/name)
- src=(SCENE/'main.svml').read_text()
- if MODE=='smoke':src=src.replace('timeline={animation.timeline}/>','timeline={animation.timeline} start-frame="2040" end-frame-exclusive="2940"/>')
- (SCENE/'main.svml').write_text(src)
+ # Smoke renders the same authored scene on a 15s prefix timeline. No separate cut and no
+ # frame-range attributes: the scene package still sees the real 7080-frame source semantics.
+ ENTRY='main.svml'
+ if MODE=='smoke':
+  src=(SCENE/'main.svml').read_text()
+  assert 'end="118s"' in src,'main.svml timeline changed; update smoke slice'
+  (SCENE/'main-smoke.svml').write_text(src.replace('end="118s"','end="15s"'))
+  (SCENE/'main-smoke.svrun').write_text((SCENE/'main.svrun').read_text().replace('./main.svml','./main-smoke.svml'))
+  ENTRY='main-smoke.svml'
  cfg=json.loads((PROJECT/'hypit/hypit.runtime.json').read_text());cfg['endpoints']['html.local']['config']={'chromePath':shutil.which('google-chrome'),'workers':1,'maxWorkers':1,'defaultConcurrency':1}
  (SCENE/'hypit.runtime.json').write_text(json.dumps(cfg))
  rt=['--runtime',str(SCENE/'hypit.runtime.json')]
- cli('check',str(SCENE/'main.svrun'))
- cli('plan',str(SCENE/'main.svrun'),*rt)
+ cli('check',str(SCENE/ENTRY))
+ cli('plan',str(SCENE/ENTRY.replace('svml','svrun')),*rt)
  # Static image/animation execution checks happen in real Chromium before a long render.
  run(['node',str(PROJECT/'cloud_audit.mjs')])
  cli('programs','prepare',*rt,'--endpoint','html.local','--endpoint','media.local')
- p=cli('build',str(SCENE/'main.svrun'),*rt,'--follow','--json',capture_output=True,text=True)
+ p=cli('build',str(SCENE/ENTRY.replace('svml','svrun')),*rt,'--follow','--json',capture_output=True,text=True)
  (OUT/'build.json').write_text(p.stdout);(OUT/'build.log').write_text(p.stderr)
  print(p.stdout,flush=True)
  build=json.loads(p.stdout)['build'];bid=build['id']
