@@ -1,0 +1,17 @@
+<?svml using="@hypit/markup@1"?>
+<svml>
+  <import as="time" from="@hypit/timeline-author@1"/>
+  <import as="spatial" from="@hypit/spatial@1"/>
+  <import as="jz" from="@jianzao/scene@1"/>
+  <import as="film" from="@hypit/film@1"/>
+  <import as="html" from="@hypit/html-video@1"/>
+  <import as="style" source="./main.svs"/>
+  <time:Clock id="clock" frame-rate="60"/>
+  <time:Timeline id="animation" clock={clock} end="118s"/>
+  <spatial:Canvas id="canvas" width="1920" height="1080"/>
+  <jz:Scene id="story" timeline={animation.timeline} within={canvas.bounds} during={animation.window}/>
+  <film:Film id="main" canvas={canvas.canvas} timeline={animation.timeline} appearance={style.film.main}>
+    <film:Track source={story.visual}/>
+  </film:Film>
+  <html:Video id="final" composition={main.composition} timeline={animation.timeline}/>
+</svml>
